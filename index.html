@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>UAS GRAFKOM</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				background-color: #bfd1e5;
+				color: #61443e;
+			}
+			a {
+				color: #a06851;
+			}
+		</style>
+	</head>
+	<body>
+
+		<div id="container"></div>
+
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "../build/three.module.js",
+					"three/addons/": "./jsm/",
+					"three/examples/": "./jsm/",
+				}
+			}
+		</script>
+
+		<script type="module">
+
+			import * as THREE from 'three';
+
+			import Stats from 'three/addons/libs/stats.module.js';
+
+			import { FirstPersonControls } from 'three/addons/controls/FirstPersonControls.js';
+			import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
+			import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
+			import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+			import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader";
+
+			const loader = new GLTFLoader();
+
+			let container, stats;
+
+			let camera, controls, scene, renderer;
+
+			const worldWidth = 128, worldDepth = 128;
+			const worldHalfWidth = worldWidth / 2;
+			const worldHalfDepth = worldDepth / 2;
+			const data = generateHeight( worldWidth, worldDepth );
+
+			const clock = new THREE.Clock();
+
+			init();
+
+			function init() {
+
+				container = document.getElementById( 'container' );
+
+				camera = new THREE.PerspectiveCamera( 60, window.innerWidth / window.innerHeight, 1, 20000 );
+				camera.position.y = getY( worldHalfWidth, worldHalfDepth ) * 100 + 100;
+
+				scene = new THREE.Scene();
+				scene.background = new THREE.Color( 0xbfd1e5 );
+
+				// sides
+				loader.load(
+					// resource URL
+					'/blender/bg/winnie_the_poeh.gltf',
+					// called when the resource is loaded
+					function ( gltf ) {
+
+						scene.add( gltf.scene );
+
+						gltf.animations; // Array<THREE.AnimationClip>
+						gltf.scene.scale.set(1000, 1000, 1000); // THREE.Group
+						// gltf.scene.translate.set(0,0,180); // THREE.Group
+						gltf.scenes; // Array<THREE.Group>
+						gltf.cameras; // Array<THREE.Camera>
+						gltf.asset; // Object
+
+					},
+					// called while loading is progressing
+					function ( xhr ) {
+
+						console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
+
+					},
+					// called when loading has errors
+					function ( error ) {
+
+						console.log( 'An error happened' );
+						console.log(error)
+
+					}
+				);
+				const matrix = new THREE.Matrix4();
+
+				const sun_geo = new THREE.SphereGeometry( 300, 32, 1500 ); 
+				const sun_material = new THREE.MeshBasicMaterial( { color: 0xfff000 } ); 
+				const sphere = new THREE.Mesh( sun_geo, sun_material ); 
+				scene.add( sphere );
+				
+				sphere.translateY(3000)
+				sphere.translateX(2500)
+				sphere.translateZ(2000)
+
+				const ambientLight = new THREE.AmbientLight( 0x40A578, .5 );
+				scene.add( ambientLight );
+
+				const directionalLight = new THREE.DirectionalLight( 0xffffff, 1 );
+				directionalLight.position.set( 1, 1, 2 ).normalize();
+				scene.add( directionalLight );
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.setAnimationLoop( animate );
+				container.appendChild( renderer.domElement );
+
+				controls = new FirstPersonControls( camera, renderer.domElement );
+
+				controls.movementSpeed = 500;
+				controls.lookSpeed = 0.1;
+				controls.lookVertical = true;
+
+				stats = new Stats();
+				container.appendChild( stats.dom );
+
+				//
+
+				window.addEventListener( 'resize', onWindowResize );
+
+			}
+
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+				controls.handleResize();
+
+			}
+
+			function generateHeight( width, height ) {
+
+				const data = [], perlin = new ImprovedNoise(),
+					size = width * height, z = 1100;
+
+				let quality = 2;
+
+				for ( let j = 0; j < 4; j ++ ) {
+
+					if ( j === 0 ) for ( let i = 0; i < size; i ++ ) data[ i ] = 0;
+
+					for ( let i = 0; i < size; i ++ ) {
+
+						const x = i % width, y = ( i / width ) | 0;
+						data[ i ] += perlin.noise( x / quality, y / quality, z ) * quality;
+
+
+					}
+
+					quality *= 4;
+
+				}
+
+				return data;
+
+			}
+
+			function getY( x, z ) {
+
+				return ( data[ x + z * worldWidth ] * 0.15 ) | 0;
+
+			}
+
+			//
+
+			function animate() {
+
+				render();
+				stats.update();
+
+			}
+
+			function render() {
+
+				controls.update( clock.getDelta() );
+				renderer.render( scene, camera );
+
+			}
+
+		</script>
+
+	</body>
+</html>
