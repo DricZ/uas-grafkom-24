@@ -34,17 +34,19 @@
 
 			import Stats from 'three/addons/libs/stats.module.js';
 
-			import { FirstPersonControls } from 'three/addons/controls/FirstPersonControls.js';
+			import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 			import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
 			import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 			import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+			import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader";
 			import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader";
 
 			const loader = new GLTFLoader();
+			const loaderFBX = new FBXLoader();
 
 			let container, stats;
 
-			let camera, controls, scene, renderer;
+			let camera, controls, scene, renderer, mixer, group;
 
 			const worldWidth = 128, worldDepth = 128;
 			const worldHalfWidth = worldWidth / 2;
@@ -54,28 +56,43 @@
 			const clock = new THREE.Clock();
 
 			init();
+			animate()
 
 			function init() {
 
 				container = document.getElementById( 'container' );
 
 				camera = new THREE.PerspectiveCamera( 60, window.innerWidth / window.innerHeight, 1, 20000 );
-				camera.position.y = getY( worldHalfWidth, worldHalfDepth ) * 100 + 100;
-
+				// camera.position.y = getY( worldHalfWidth, worldHalfDepth ) * 100 + 100;
+				// camera.position.z = 1
 				scene = new THREE.Scene();
 				scene.background = new THREE.Color( 0xbfd1e5 );
 
-				// sides
+				group = new THREE.Group();
+				scene.add( group );
+
 				loader.load(
 					// resource URL
-					'/blender/bg/winnie_the_poeh.gltf',
+					'/blender/bg/winnies_room/scene.gltf',
 					// called when the resource is loaded
 					function ( gltf ) {
 
 						scene.add( gltf.scene );
+						scene.add( gltf.cameras );
+						scene.add( gltf.asset );
+
+						group.add(gltf.scene)
 
 						gltf.animations; // Array<THREE.AnimationClip>
-						gltf.scene.scale.set(1000, 1000, 1000); // THREE.Group
+						// gltf.scene.scale.set(2, 2, 2); // THREE.Group
+
+						mixer = new THREE.AnimationMixer( gltf.scene );
+        
+						gltf.animations.forEach( ( clip ) => {
+						
+							mixer.clipAction( clip ).play();
+						
+						} );
 						// gltf.scene.translate.set(0,0,180); // THREE.Group
 						gltf.scenes; // Array<THREE.Group>
 						gltf.cameras; // Array<THREE.Camera>
@@ -96,16 +113,8 @@
 
 					}
 				);
-				const matrix = new THREE.Matrix4();
 
-				const sun_geo = new THREE.SphereGeometry( 300, 32, 1500 ); 
-				const sun_material = new THREE.MeshBasicMaterial( { color: 0xfff000 } ); 
-				const sphere = new THREE.Mesh( sun_geo, sun_material ); 
-				scene.add( sphere );
-				
-				sphere.translateY(3000)
-				sphere.translateX(2500)
-				sphere.translateZ(2000)
+				const matrix = new THREE.Matrix4();
 
 				const ambientLight = new THREE.AmbientLight( 0x40A578, .5 );
 				scene.add( ambientLight );
@@ -113,18 +122,22 @@
 				const directionalLight = new THREE.DirectionalLight( 0xffffff, 1 );
 				directionalLight.position.set( 1, 1, 2 ).normalize();
 				scene.add( directionalLight );
+				// group.add(directionalLight)
 
 				renderer = new THREE.WebGLRenderer( { antialias: true } );
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
-				renderer.setAnimationLoop( animate );
+				// renderer.setAnimationLoop( animate );
 				container.appendChild( renderer.domElement );
 
-				controls = new FirstPersonControls( camera, renderer.domElement );
+				var pmremGenerator = new THREE.PMREMGenerator( renderer );
+				pmremGenerator.compileEquirectangularShader();
 
-				controls.movementSpeed = 500;
-				controls.lookSpeed = 0.1;
-				controls.lookVertical = true;
+				controls = new OrbitControls( camera, renderer.domElement );
+				controls.minDistance = 2;
+				controls.maxDistance = 10
+				controls.target.set( 0, 0, - 0.2 );
+				controls.update();
 
 				stats = new Stats();
 				container.appendChild( stats.dom );
@@ -190,8 +203,19 @@
 
 			function render() {
 
-				controls.update( clock.getDelta() );
+				requestAnimationFrame( animate );
+  
+				var delta = clock.getDelta();
+				
+				if ( mixer ) mixer.update( delta );
+				if (controls)
+					controls.update( delta );
+
+					group.rotation.y -= 0.005;
+
+				camera.position.x +=  delta *3
 				renderer.render( scene, camera );
+
 
 			}
 
